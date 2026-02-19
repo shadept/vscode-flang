@@ -1,0 +1,107 @@
+{
+  "name": "vscode-flang",
+  "displayName": "FLang",
+  "description": "Syntax highlighting and language server support for FLang",
+  "version": "0.1.0",
+  "publisher": "flang",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/shadept/vscode-flang"
+  },
+  "engines": {
+    "vscode": "^1.75.0"
+  },
+  "categories": [
+    "Programming Languages"
+  ],
+  "activationEvents": [
+    "onLanguage:flang"
+  ],
+  "main": "./dist/extension.js",
+  "contributes": {
+    "languages": [
+      {
+        "id": "flang",
+        "aliases": [
+          "FLang",
+          "flang",
+          "F-Lang"
+        ],
+        "extensions": [
+          ".f"
+        ],
+        "configuration": "./language-configuration.json"
+      }
+    ],
+    "grammars": [
+      {
+        "language": "flang",
+        "scopeName": "source.f",
+        "path": "./syntaxes/f.tmLanguage.json"
+      }
+    ],
+    "commands": [
+      {
+        "command": "flang.restartServer",
+        "title": "FLang: Restart Language Server"
+      },
+      {
+        "command": "flang.updateCompiler",
+        "title": "FLang: Check for Compiler Updates"
+      },
+      {
+        "command": "flang.showCompilerVersion",
+        "title": "FLang: Show Compiler Version"
+      }
+    ],
+    "configuration": {
+      "title": "FLang",
+      "properties": {
+        "flang.mode": {
+          "type": "string",
+          "default": "auto",
+          "enum": [
+            "auto",
+            "manual"
+          ],
+          "enumDescriptions": [
+            "Automatically download and update the FLang compiler from GitHub releases",
+            "Use a manually specified path or PATH lookup for the FLang compiler"
+          ],
+          "description": "How the FLang compiler is managed."
+        },
+        "flang.serverPath": {
+          "type": "string",
+          "default": "",
+          "description": "Path to the flang executable (manual mode). If empty, looks for 'flang' on PATH."
+        },
+        "flang.stdlibPath": {
+          "type": "string",
+          "default": "",
+          "description": "Path to the FLang standard library. If empty, auto-detects next to the flang binary."
+        },
+        "flang.autoUpdate": {
+          "type": "boolean",
+          "default": true,
+          "description": "Automatically check for newer compiler versions on startup (auto mode only)."
+        }
+      }
+    }
+  },
+  "scripts": {
+    "build": "esbuild src/extension.ts --bundle --outfile=dist/extension.js --external:vscode --format=cjs --platform=node --sourcemap",
+    "watch": "esbuild src/extension.ts --bundle --outfile=dist/extension.js --external:vscode --format=cjs --platform=node --sourcemap --watch",
+    "package": "npm run build -- --minify && vsce package"
+  },
+  "dependencies": {
+    "vscode-languageclient": "^9.0.1"
+  },
+  "devDependencies": {
+    "@types/node": "^20.0.0",
+    "@types/vscode": "^1.75.0",
+    "@vscode/vsce": "^3.0.0",
+    "esbuild": "^0.24.0",
+    "typescript": "^5.3.0"
+  }
+}
