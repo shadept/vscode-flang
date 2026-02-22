@@ -2,7 +2,7 @@
   "name": "vscode-flang",
   "displayName": "FLang",
   "description": "Syntax highlighting and language server support for FLang",
-  "version": "0.2.0",
+  "version": "0.2.1",
   "publisher": "flang",
   "license": "MIT",
   "repository": {
