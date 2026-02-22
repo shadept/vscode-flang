@@ -78,7 +78,7 @@ function writeInstalledVersion(
 // ---------------------------------------------------------------------------
 
 const GITHUB_API_LATEST =
-  "https://api.github.com/repos/shadept/flangv2/releases/latest";
+  "https://api.github.com/repos/shadept/flang/releases/latest";
 
 interface GitHubAsset {
   name: string;
