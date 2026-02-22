@@ -6,6 +6,7 @@ Syntax highlighting and language server support for [FLang](https://github.com/s
 
 - **Syntax Highlighting** -- full TextMate grammar for all FLang constructs
 - **Language Server** -- hover, go to definition, diagnostics, inlay hints, signature help, and more
+- **Compiler Management** -- automatically downloads, updates, and adds the compiler to your PATH
 
 ## Getting Started
 
@@ -27,6 +28,7 @@ Install the extension and open a `.f` file. By default, the compiler is download
 | `FLang: Restart Language Server` | Restart the LSP server. |
 | `FLang: Check for Compiler Updates` | Check for a newer compiler release (auto mode). |
 | `FLang: Show Compiler Version` | Show the current compiler version or path. |
+| `FLang: Add Compiler to System PATH` | Add the auto-managed compiler to your system PATH so it can be used outside VS Code. |
 
 ## License
 
