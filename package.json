@@ -53,6 +53,10 @@
       {
         "command": "flang.showCompilerVersion",
         "title": "FLang: Show Compiler Version"
+      },
+      {
+        "command": "flang.addToPath",
+        "title": "FLang: Add Compiler to System PATH"
       }
     ],
     "configuration": {

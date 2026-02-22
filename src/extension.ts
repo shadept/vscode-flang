@@ -410,6 +410,99 @@ function cleanupTemp() {
 }
 
 // ---------------------------------------------------------------------------
+// Environment / PATH helpers
+// ---------------------------------------------------------------------------
+
+function setupTerminalEnvironment(context: vscode.ExtensionContext) {
+  const compilerDir = getCompilerDir(context);
+  if (!fs.existsSync(compilerDir)) return;
+
+  const env = context.environmentVariableCollection;
+  env.prepend("PATH", compilerDir + path.delimiter);
+  log(`Added ${compilerDir} to VS Code terminal PATH`);
+}
+
+async function addToSystemPath(
+  context: vscode.ExtensionContext
+): Promise<void> {
+  const compilerDir = getCompilerDir(context);
+  if (!fs.existsSync(getCompilerBinaryPath(context))) {
+    vscode.window.showErrorMessage(
+      "FLang: Compiler is not installed yet. Please wait for the download to complete."
+    );
+    return;
+  }
+
+  const { execFile } = await import("node:child_process");
+  const { promisify } = await import("node:util");
+  const execFileAsync = promisify(execFile);
+
+  if (process.platform === "win32") {
+    try {
+      // Read current user PATH
+      const { stdout: currentPath } = await execFileAsync("powershell.exe", [
+        "-NoProfile",
+        "-Command",
+        `[Environment]::GetEnvironmentVariable("Path", "User")`,
+      ]);
+
+      const paths = currentPath.trim().split(";").filter(Boolean);
+      if (paths.some((p) => p.toLowerCase() === compilerDir.toLowerCase())) {
+        vscode.window.showInformationMessage(
+          "FLang: Compiler directory is already on your PATH."
+        );
+        return;
+      }
+
+      // Append compiler dir to user PATH
+      const newPath = [...paths, compilerDir].join(";");
+      await execFileAsync("powershell.exe", [
+        "-NoProfile",
+        "-Command",
+        `[Environment]::SetEnvironmentVariable("Path", "${newPath}", "User")`,
+      ]);
+
+      vscode.window.showInformationMessage(
+        `FLang: Added compiler to user PATH. Restart any open terminals to pick up the change.\n${compilerDir}`
+      );
+      log(`Added ${compilerDir} to user PATH (Windows)`);
+    } catch (e: unknown) {
+      const msg = e instanceof Error ? e.message : String(e);
+      log(`Failed to modify PATH: ${msg}`);
+      vscode.window.showErrorMessage(`FLang: Failed to modify PATH: ${msg}`);
+    }
+  } else {
+    // Linux / macOS: symlink into /usr/local/bin
+    const linkPath = "/usr/local/bin/flang";
+    const binaryPath = getCompilerBinaryPath(context);
+
+    try {
+      if (fs.existsSync(linkPath)) {
+        const target = fs.readlinkSync(linkPath);
+        if (target === binaryPath) {
+          vscode.window.showInformationMessage(
+            "FLang: Compiler symlink already exists at /usr/local/bin/flang."
+          );
+          return;
+        }
+      }
+
+      // May require sudo – try without first
+      await execFileAsync("ln", ["-sf", binaryPath, linkPath]);
+      vscode.window.showInformationMessage(
+        "FLang: Created symlink at /usr/local/bin/flang."
+      );
+      log(`Created symlink ${linkPath} -> ${binaryPath}`);
+    } catch {
+      // Likely a permission error – inform user
+      vscode.window.showWarningMessage(
+        `FLang: Could not create symlink. Run: sudo ln -sf "${binaryPath}" ${linkPath}`
+      );
+    }
+  }
+}
+
+// ---------------------------------------------------------------------------
 // LSP client
 // ---------------------------------------------------------------------------
 
@@ -537,6 +630,7 @@ export async function activate(context: vscode.ExtensionContext) {
       );
       return;
     }
+    setupTerminalEnvironment(context);
   }
 
   client = createClient(context);
@@ -641,7 +735,21 @@ export async function activate(context: vscode.ExtensionContext) {
     }
   );
 
-  context.subscriptions.push(restartCmd, updateCmd, versionCmd);
+  const addToPathCmd = vscode.commands.registerCommand(
+    "flang.addToPath",
+    async () => {
+      const currentCfg = getConfig();
+      if (currentCfg.mode !== "auto") {
+        vscode.window.showWarningMessage(
+          "FLang: This command is only available in auto mode."
+        );
+        return;
+      }
+      await addToSystemPath(context);
+    }
+  );
+
+  context.subscriptions.push(restartCmd, updateCmd, versionCmd, addToPathCmd);
   context.subscriptions.push({ dispose: cleanupTemp });
 }
 
