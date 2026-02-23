@@ -514,7 +514,7 @@ function resolveServerPath(context: vscode.ExtensionContext): {
 
   if (cfg.mode === "auto") {
     const command = getCompilerBinaryPath(context);
-    const stdlibPath = getCompilerStdlibPath(context);
+    const stdlibPath = cfg.stdlibPath || getCompilerStdlibPath(context);
     return { command, stdlibPath };
   }
 
