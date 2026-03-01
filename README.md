@@ -1,6 +1,6 @@
 # FLang for Visual Studio Code
 
-Syntax highlighting and language server support for [FLang](https://github.com/shadept/flangv2).
+Syntax highlighting and language server support for [FLang](https://github.com/shadept/flang).
 
 ## Features
 
