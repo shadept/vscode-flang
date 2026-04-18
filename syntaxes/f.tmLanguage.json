@@ -225,7 +225,7 @@
       "patterns": [
         {
           "name": "keyword.control.flow.f",
-          "match": "\\b(return|defer|if|else|for|in|break|continue|match|loop|and|or)\\b"
+          "match": "\\b(return|defer|if|else|for|while|in|break|continue|match|loop|and|or)\\b"
         },
         {
           "comment": "Import declaration",
