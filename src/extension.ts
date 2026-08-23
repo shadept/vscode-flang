@@ -751,6 +751,22 @@ export async function activate(context: vscode.ExtensionContext) {
 
   context.subscriptions.push(restartCmd, updateCmd, versionCmd, addToPathCmd);
   context.subscriptions.push({ dispose: cleanupTemp });
+
+  // Template-expansion output lives only in the server's memory. Go-to-definition
+  // into generated code yields a `flang-generated://<origin>.generated.f` URI;
+  // this provider fetches its text so VS Code opens it as a read-only document.
+  context.subscriptions.push(
+    vscode.workspace.registerTextDocumentContentProvider("flang-generated", {
+      provideTextDocumentContent: async (uri) => {
+        if (!client) return "";
+        const result = await client.sendRequest<{ content: string | null }>(
+          "flang/generatedContent",
+          { uri: uri.toString() }
+        );
+        return result.content ?? "// (generated content not available — reopen the origin file)";
+      },
+    })
+  );
 }
 
 export function deactivate(): Thenable<void> | undefined {
