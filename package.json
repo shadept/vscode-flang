@@ -81,16 +81,18 @@
         },
         "flang.serverFlavor": {
           "type": "string",
-          "default": "reference",
+          "default": "auto",
           "enum": [
+            "auto",
             "reference",
             "self-hosted"
           ],
           "enumDescriptions": [
+            "Ask the binary via --version (recommended)",
             "The C# reference compiler (flang-ref): launched as 'flang --lsp --stdlib-path <p>'",
             "The self-hosted compiler (flang): launched as 'flang lsp -s <p>'"
           ],
-          "description": "Which compiler's language server to launch, and therefore which CLI shape to use."
+          "description": "Which compiler's language server the binary is. 'auto' detects it from the binary's --version banner; set explicitly only if the probe misidentifies it."
         },
         "flang.serverPath": {
           "type": "string",

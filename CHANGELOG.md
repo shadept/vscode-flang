@@ -4,6 +4,14 @@ All notable changes to the FLang VS Code extension will be documented in this fi
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/).
 
+## [0.3.2] - 2026-08-28
+
+### Changed
+
+- `flang.serverFlavor` defaults to `auto`: the flavor is detected from the binary's `--version` banner, so only `flang.serverPath` needs changing to switch servers
+- Status bar item moved to the right side, next to the notification bell
+- Status bar click now lists the workspace's open projects with error counts; picking one opens its `flang.toml`
+
 ## [0.3.0] - 2026-08-28
 
 ### Added

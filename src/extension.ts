@@ -32,14 +32,15 @@ interface ServerStatus {
 
 let statusBar: vscode.StatusBarItem | undefined;
 let lastStatus: ServerStatus | undefined;
+// Resolved from the binary at launch ("auto" never survives detection).
+let activeFlavor: ResolvedFlavor = "reference";
 
 function updateStatusBar() {
   if (!statusBar) return;
-  const flavor = getConfig().serverFlavor;
 
   if (!lastStatus) {
     statusBar.text = "$(zap) FLang";
-    statusBar.tooltip = `FLang language server (${flavor})`;
+    statusBar.tooltip = `FLang language server (${activeFlavor})`;
     return;
   }
 
@@ -48,7 +49,7 @@ function updateStatusBar() {
   statusBar.text = `${icon} FLang ${lastStatus.version}`;
 
   const md = new vscode.MarkdownString();
-  md.appendMarkdown(`**FLang** ${lastStatus.version} (${flavor})\n\n`);
+  md.appendMarkdown(`**FLang** ${lastStatus.version} (${activeFlavor})\n\n`);
   if (lastStatus.folders.length > 0) {
     md.appendMarkdown(`Workspace: ${lastStatus.folders.join(", ")}\n\n`);
   }
@@ -58,7 +59,7 @@ function updateStatusBar() {
       md.appendMarkdown(`| ${p.name} | ${p.errors} |\n`);
     }
   } else {
-    md.appendMarkdown("No projects analyzed yet.");
+    md.appendMarkdown("No projects analyzed yet - open a `.f` file.");
   }
   statusBar.tooltip = md;
 }
@@ -70,36 +71,51 @@ function hookServerStatus(c: LanguageClient) {
   });
 }
 
+// Status-bar click: compiler version and the workspace's open projects. Picking a project opens
+// its flang.toml.
 async function showServerStatus() {
-  const flavor = getConfig().serverFlavor;
-  const items: vscode.QuickPickItem[] = [
+  interface StatusPick extends vscode.QuickPickItem {
+    projectDir?: string;
+  }
+  const items: StatusPick[] = [
     {
-      label: `$(zap) Compiler version: ${lastStatus?.version ?? "unknown"}`,
-      detail: `Server flavor: ${flavor}`,
+      label: `$(zap) Compiler ${lastStatus?.version ?? "unknown"}`,
+      description: `${activeFlavor} server`,
+      detail: lastStatus?.folders.length
+        ? `Workspace: ${lastStatus.folders.join(", ")}`
+        : undefined,
     },
   ];
-  if (lastStatus?.folders.length) {
-    items.push({
-      label: `$(root-folder) Workspace: ${lastStatus.folders.join(", ")}`,
-    });
-  }
   for (const p of lastStatus?.projects ?? []) {
     items.push({
       label: `$(package) ${p.name}`,
-      description: p.errors > 0 ? `${p.errors} error(s)` : "no errors",
+      description: p.errors > 0 ? `$(error) ${p.errors} error(s)` : "$(check) no errors",
       detail: p.dir,
+      projectDir: p.dir,
+    });
+  }
+  if (lastStatus && lastStatus.projects.length === 0) {
+    items.push({
+      label: "$(info) No projects analyzed yet",
+      detail: "Open a .f file under a flang.toml to analyze its project.",
     });
   }
   if (!lastStatus) {
     items.push({
-      label: "$(info) No status received from the server yet",
+      label: "$(info) No status received from the server",
       detail:
-        "The reference server does not report status; switch flang.serverFlavor to self-hosted.",
+        activeFlavor === "reference"
+          ? "The reference server does not report status; it arrives with the self-hosted server."
+          : "The server has not sent flang/serverStatus yet - check the FLang LSP output channel.",
     });
   }
-  await vscode.window.showQuickPick(items, {
+  const picked = await vscode.window.showQuickPick(items, {
     placeHolder: "FLang language server",
   });
+  if (picked?.projectDir) {
+    const manifest = vscode.Uri.file(path.join(picked.projectDir, "flang.toml"));
+    await vscode.window.showTextDocument(manifest);
+  }
 }
 
 function log(msg: string) {
@@ -111,17 +127,43 @@ function log(msg: string) {
 // ---------------------------------------------------------------------------
 
 type Mode = "auto" | "manual";
-type ServerFlavor = "reference" | "self-hosted";
+type ServerFlavor = "auto" | "reference" | "self-hosted";
+type ResolvedFlavor = Exclude<ServerFlavor, "auto">;
 
 function getConfig() {
   const config = vscode.workspace.getConfiguration("flang");
   return {
     mode: config.get<Mode>("mode", "auto"),
-    serverFlavor: config.get<ServerFlavor>("serverFlavor", "reference"),
+    serverFlavor: config.get<ServerFlavor>("serverFlavor", "auto"),
     serverPath: config.get<string>("serverPath", ""),
     stdlibPath: config.get<string>("stdlibPath", ""),
     autoUpdate: config.get<boolean>("autoUpdate", true),
   };
+}
+
+// Which server the binary is: ask it. Both compilers name themselves in --version
+// ("reference compiler, C#" vs "self-hosted compiler, FLang"). An explicit flang.serverFlavor
+// overrides; a failed probe falls back to reference (the historical default).
+async function detectFlavor(command: string): Promise<ResolvedFlavor> {
+  const configured = getConfig().serverFlavor;
+  if (configured !== "auto") {
+    return configured;
+  }
+  try {
+    const { execFile } = await import("node:child_process");
+    const { promisify } = await import("node:util");
+    const out = await promisify(execFile)(command, ["--version"], {
+      timeout: 10_000,
+    });
+    const banner = `${out.stdout}\n${out.stderr}`;
+    log(`--version probe: ${out.stdout.trim()}`);
+    if (/self-hosted/i.test(banner)) {
+      return "self-hosted";
+    }
+  } catch (e: unknown) {
+    log(`--version probe failed (${e}); assuming reference server`);
+  }
+  return "reference";
 }
 
 // ---------------------------------------------------------------------------
@@ -614,11 +656,15 @@ function resolveServerPath(context: vscode.ExtensionContext): {
   return { command, stdlibPath: cfg.stdlibPath };
 }
 
-function createClient(context: vscode.ExtensionContext): LanguageClient {
+async function createClient(
+  context: vscode.ExtensionContext
+): Promise<LanguageClient> {
   cleanupTemp();
 
   const { command, stdlibPath } = resolveServerPath(context);
-  const flavor = getConfig().serverFlavor;
+  const flavor = await detectFlavor(command);
+  activeFlavor = flavor;
+  updateStatusBar();
   log(`Using server binary: ${command} (${flavor})`);
 
   // The reference compiler (flang-ref) speaks `--lsp --stdlib-path <p>`; the
@@ -728,16 +774,18 @@ export async function activate(context: vscode.ExtensionContext) {
     setupTerminalEnvironment(context);
   }
 
+  // Right-aligned with negative priority: sits at the far right of the status
+  // bar, next to the notification bell, like other language extensions.
   statusBar = vscode.window.createStatusBarItem(
-    vscode.StatusBarAlignment.Left,
-    100
+    vscode.StatusBarAlignment.Right,
+    -1
   );
   statusBar.command = "flang.showServerStatus";
   updateStatusBar();
   statusBar.show();
   context.subscriptions.push(statusBar);
 
-  client = createClient(context);
+  client = await createClient(context);
   hookServerStatus(client);
   log("Starting FLang LSP client...");
   await client.start();
@@ -756,7 +804,7 @@ export async function activate(context: vscode.ExtensionContext) {
       }
       lastStatus = undefined;
       updateStatusBar();
-      client = createClient(context);
+      client = await createClient(context);
       hookServerStatus(client);
       await client.start();
       log("FLang LSP server restarted.");
