@@ -4,6 +4,15 @@ All notable changes to the FLang VS Code extension will be documented in this fi
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/).
 
+## [0.3.0] - 2026-08-28
+
+### Added
+
+- `flang.serverFlavor` setting to switch between the reference server (`flang --lsp --stdlib-path <p>`) and the self-hosted server (`flang lsp -s <p>`)
+- Status bar item showing compiler version and per-project error counts, fed by the self-hosted server's `flang/serverStatus` notification
+- `FLang: Show Language Server Status` command (also on status bar click): version, workspace folders, open projects
+- File watcher now covers `flang.toml`, so manifest edits rebuild the affected project server-side
+
 ## [0.1.0] - 2026-02-19
 
 ### Added

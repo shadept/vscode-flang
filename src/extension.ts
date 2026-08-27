@@ -14,6 +14,94 @@ let client: LanguageClient | undefined;
 let tempDir: string | undefined;
 const outputChannel = vscode.window.createOutputChannel("FLang LSP");
 
+// ---------------------------------------------------------------------------
+// Status bar - fed by the server's flang/serverStatus notification
+// ---------------------------------------------------------------------------
+
+interface ServerStatusProject {
+  name: string;
+  dir: string;
+  errors: number;
+}
+
+interface ServerStatus {
+  version: string;
+  folders: string[];
+  projects: ServerStatusProject[];
+}
+
+let statusBar: vscode.StatusBarItem | undefined;
+let lastStatus: ServerStatus | undefined;
+
+function updateStatusBar() {
+  if (!statusBar) return;
+  const flavor = getConfig().serverFlavor;
+
+  if (!lastStatus) {
+    statusBar.text = "$(zap) FLang";
+    statusBar.tooltip = `FLang language server (${flavor})`;
+    return;
+  }
+
+  const errors = lastStatus.projects.reduce((n, p) => n + p.errors, 0);
+  const icon = errors > 0 ? "$(error)" : "$(check)";
+  statusBar.text = `${icon} FLang ${lastStatus.version}`;
+
+  const md = new vscode.MarkdownString();
+  md.appendMarkdown(`**FLang** ${lastStatus.version} (${flavor})\n\n`);
+  if (lastStatus.folders.length > 0) {
+    md.appendMarkdown(`Workspace: ${lastStatus.folders.join(", ")}\n\n`);
+  }
+  if (lastStatus.projects.length > 0) {
+    md.appendMarkdown("| Project | Errors |\n|---|---:|\n");
+    for (const p of lastStatus.projects) {
+      md.appendMarkdown(`| ${p.name} | ${p.errors} |\n`);
+    }
+  } else {
+    md.appendMarkdown("No projects analyzed yet.");
+  }
+  statusBar.tooltip = md;
+}
+
+function hookServerStatus(c: LanguageClient) {
+  c.onNotification("flang/serverStatus", (status: ServerStatus) => {
+    lastStatus = status;
+    updateStatusBar();
+  });
+}
+
+async function showServerStatus() {
+  const flavor = getConfig().serverFlavor;
+  const items: vscode.QuickPickItem[] = [
+    {
+      label: `$(zap) Compiler version: ${lastStatus?.version ?? "unknown"}`,
+      detail: `Server flavor: ${flavor}`,
+    },
+  ];
+  if (lastStatus?.folders.length) {
+    items.push({
+      label: `$(root-folder) Workspace: ${lastStatus.folders.join(", ")}`,
+    });
+  }
+  for (const p of lastStatus?.projects ?? []) {
+    items.push({
+      label: `$(package) ${p.name}`,
+      description: p.errors > 0 ? `${p.errors} error(s)` : "no errors",
+      detail: p.dir,
+    });
+  }
+  if (!lastStatus) {
+    items.push({
+      label: "$(info) No status received from the server yet",
+      detail:
+        "The reference server does not report status; switch flang.serverFlavor to self-hosted.",
+    });
+  }
+  await vscode.window.showQuickPick(items, {
+    placeHolder: "FLang language server",
+  });
+}
+
 function log(msg: string) {
   outputChannel.appendLine(`[${new Date().toISOString()}] ${msg}`);
 }
@@ -23,11 +111,13 @@ function log(msg: string) {
 // ---------------------------------------------------------------------------
 
 type Mode = "auto" | "manual";
+type ServerFlavor = "reference" | "self-hosted";
 
 function getConfig() {
   const config = vscode.workspace.getConfiguration("flang");
   return {
     mode: config.get<Mode>("mode", "auto"),
+    serverFlavor: config.get<ServerFlavor>("serverFlavor", "reference"),
     serverPath: config.get<string>("serverPath", ""),
     stdlibPath: config.get<string>("stdlibPath", ""),
     autoUpdate: config.get<boolean>("autoUpdate", true),
@@ -528,11 +618,15 @@ function createClient(context: vscode.ExtensionContext): LanguageClient {
   cleanupTemp();
 
   const { command, stdlibPath } = resolveServerPath(context);
-  log(`Using server binary: ${command}`);
+  const flavor = getConfig().serverFlavor;
+  log(`Using server binary: ${command} (${flavor})`);
 
-  const args = ["--lsp"];
+  // The reference compiler (flang-ref) speaks `--lsp --stdlib-path <p>`; the
+  // self-hosted compiler speaks `lsp -s <p>` and defaults the stdlib to the
+  // directory next to its own binary.
+  const args = flavor === "self-hosted" ? ["lsp"] : ["--lsp"];
   if (stdlibPath) {
-    args.push("--stdlib-path", stdlibPath);
+    args.push(flavor === "self-hosted" ? "-s" : "--stdlib-path", stdlibPath);
   }
 
   const serverOptions: ServerOptions = {
@@ -551,7 +645,8 @@ function createClient(context: vscode.ExtensionContext): LanguageClient {
   const clientOptions: LanguageClientOptions = {
     documentSelector: [{ scheme: "file", language: "flang" }],
     synchronize: {
-      fileEvents: vscode.workspace.createFileSystemWatcher("**/*.f"),
+      // flang.toml edits change a project's module set; the server rebuilds it.
+      fileEvents: vscode.workspace.createFileSystemWatcher("**/{*.f,flang.toml}"),
     },
     outputChannel,
   };
@@ -633,7 +728,17 @@ export async function activate(context: vscode.ExtensionContext) {
     setupTerminalEnvironment(context);
   }
 
+  statusBar = vscode.window.createStatusBarItem(
+    vscode.StatusBarAlignment.Left,
+    100
+  );
+  statusBar.command = "flang.showServerStatus";
+  updateStatusBar();
+  statusBar.show();
+  context.subscriptions.push(statusBar);
+
   client = createClient(context);
+  hookServerStatus(client);
   log("Starting FLang LSP client...");
   await client.start();
 
@@ -649,10 +754,18 @@ export async function activate(context: vscode.ExtensionContext) {
       if (getConfig().mode === "auto") {
         await ensureCompiler(context);
       }
+      lastStatus = undefined;
+      updateStatusBar();
       client = createClient(context);
+      hookServerStatus(client);
       await client.start();
       log("FLang LSP server restarted.");
     }
+  );
+
+  const statusCmd = vscode.commands.registerCommand(
+    "flang.showServerStatus",
+    showServerStatus
   );
 
   const updateCmd = vscode.commands.registerCommand(
@@ -749,7 +862,13 @@ export async function activate(context: vscode.ExtensionContext) {
     }
   );
 
-  context.subscriptions.push(restartCmd, updateCmd, versionCmd, addToPathCmd);
+  context.subscriptions.push(
+    restartCmd,
+    statusCmd,
+    updateCmd,
+    versionCmd,
+    addToPathCmd
+  );
   context.subscriptions.push({ dispose: cleanupTemp });
 
   // Template-expansion output lives only in the server's memory. Go-to-definition

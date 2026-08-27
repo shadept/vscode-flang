@@ -2,7 +2,7 @@
   "name": "vscode-flang",
   "displayName": "FLang",
   "description": "Syntax highlighting and language server support for FLang",
-  "version": "0.2.6",
+  "version": "0.3.0",
   "publisher": "flang",
   "license": "MIT",
   "repository": {
@@ -55,6 +55,10 @@
         "title": "FLang: Show Compiler Version"
       },
       {
+        "command": "flang.showServerStatus",
+        "title": "FLang: Show Language Server Status"
+      },
+      {
         "command": "flang.addToPath",
         "title": "FLang: Add Compiler to System PATH"
       }
@@ -74,6 +78,19 @@
             "Use a manually specified path or PATH lookup for the FLang compiler"
           ],
           "description": "How the FLang compiler is managed."
+        },
+        "flang.serverFlavor": {
+          "type": "string",
+          "default": "reference",
+          "enum": [
+            "reference",
+            "self-hosted"
+          ],
+          "enumDescriptions": [
+            "The C# reference compiler (flang-ref): launched as 'flang --lsp --stdlib-path <p>'",
+            "The self-hosted compiler (flang): launched as 'flang lsp -s <p>'"
+          ],
+          "description": "Which compiler's language server to launch, and therefore which CLI shape to use."
         },
         "flang.serverPath": {
           "type": "string",
