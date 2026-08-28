@@ -646,14 +646,26 @@ function resolveServerPath(context: vscode.ExtensionContext): {
 
   if (cfg.mode === "auto") {
     const command = getCompilerBinaryPath(context);
-    const stdlibPath = cfg.stdlibPath || getCompilerStdlibPath(context);
+    const stdlibPath = path.resolve(
+      cfg.stdlibPath || getCompilerStdlibPath(context)
+    );
     return { command, stdlibPath };
   }
 
-  // Manual mode
+  // Manual mode. The stdlib must be passed explicitly and absolute: the server
+  // runs from a temp copy of the binary, so its own "stdlib next to the exe"
+  // default points at the temp dir. Fall back to the stdlib next to the
+  // ORIGINAL binary when the setting is empty.
   const serverPath = cfg.serverPath || "flang";
   const command = copyToTemp(serverPath);
-  return { command, stdlibPath: cfg.stdlibPath };
+  let stdlibPath = cfg.stdlibPath ? path.resolve(cfg.stdlibPath) : "";
+  if (!stdlibPath && cfg.serverPath) {
+    const candidate = path.join(path.dirname(path.resolve(cfg.serverPath)), "stdlib");
+    if (fs.existsSync(candidate)) {
+      stdlibPath = candidate;
+    }
+  }
+  return { command, stdlibPath };
 }
 
 async function createClient(
