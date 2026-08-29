@@ -8,7 +8,7 @@ import type {
   LanguageClientOptions,
   ServerOptions,
 } from "vscode-languageclient/node";
-import { LanguageClient, TransportKind } from "vscode-languageclient/node";
+import { LanguageClient } from "vscode-languageclient/node";
 
 let client: LanguageClient | undefined;
 let tempDir: string | undefined;
@@ -687,17 +687,12 @@ async function createClient(
     args.push(flavor === "self-hosted" ? "-s" : "--stdlib-path", stdlibPath);
   }
 
+  // No `transport`: TransportKind.stdio appends `--stdio` to the argument list,
+  // which neither compiler's CLI accepts - it answers with its help text and
+  // corrupts the message stream. Omitting it spawns the same stdio child.
   const serverOptions: ServerOptions = {
-    run: {
-      command,
-      args,
-      transport: TransportKind.stdio,
-    },
-    debug: {
-      command,
-      args,
-      transport: TransportKind.stdio,
-    },
+    run: { command, args },
+    debug: { command, args },
   };
 
   const clientOptions: LanguageClientOptions = {
@@ -761,6 +756,16 @@ async function promptForMode(): Promise<Mode | undefined> {
 // ---------------------------------------------------------------------------
 
 export async function activate(context: vscode.ExtensionContext) {
+  // Commands first, and unconditionally: a failed launch, a missing compiler or
+  // a declined setup prompt must still leave "FLang: Restart Language Server" in
+  // the palette, since that is what a user reaches for to recover.
+  registerCommands(context);
+  await startServer(context);
+}
+
+// Resolve the compiler, show the status bar, bring the client up. Reports
+// failure instead of throwing: the extension stays active and restartable.
+async function startServer(context: vscode.ExtensionContext) {
   let mode: Mode;
 
   if (!isModeExplicitlySet()) {
@@ -788,38 +793,55 @@ export async function activate(context: vscode.ExtensionContext) {
 
   // Right-aligned with negative priority: sits at the far right of the status
   // bar, next to the notification bell, like other language extensions.
-  statusBar = vscode.window.createStatusBarItem(
-    vscode.StatusBarAlignment.Right,
-    -1
-  );
-  statusBar.command = "flang.showServerStatus";
+  if (!statusBar) {
+    statusBar = vscode.window.createStatusBarItem(
+      vscode.StatusBarAlignment.Right,
+      -1
+    );
+    statusBar.command = "flang.showServerStatus";
+    statusBar.show();
+    context.subscriptions.push(statusBar);
+  }
   updateStatusBar();
-  statusBar.show();
-  context.subscriptions.push(statusBar);
 
-  client = await createClient(context);
-  hookServerStatus(client);
-  log("Starting FLang LSP client...");
-  await client.start();
+  try {
+    client = await createClient(context);
+    hookServerStatus(client);
+    log("Starting FLang LSP client...");
+    await client.start();
+  } catch (e: unknown) {
+    const msg = e instanceof Error ? e.message : String(e);
+    client = undefined;
+    log(`Language server failed to start: ${msg}`);
+    vscode.window.showErrorMessage(
+      `FLang: language server failed to start (${msg}). See the FLang LSP output channel.`
+    );
+  }
+}
 
-  // -- Commands -----------------------------------------------------------
+// Stopping a client that never finished starting throws; a restart must work
+// from any state, so the failure is logged and the client dropped.
+async function stopServer() {
+  if (!client) {
+    return;
+  }
+  try {
+    await client.stop();
+  } catch (e: unknown) {
+    log(`Stopping the language server failed: ${e}`);
+  }
+  client = undefined;
+}
 
+function registerCommands(context: vscode.ExtensionContext) {
   const restartCmd = vscode.commands.registerCommand(
     "flang.restartServer",
     async () => {
       log("Restarting FLang LSP server...");
-      if (client) {
-        await client.stop();
-      }
-      if (getConfig().mode === "auto") {
-        await ensureCompiler(context);
-      }
+      await stopServer();
       lastStatus = undefined;
       updateStatusBar();
-      client = await createClient(context);
-      hookServerStatus(client);
-      await client.start();
-      log("FLang LSP server restarted.");
+      await startServer(context);
     }
   );
 
@@ -949,8 +971,5 @@ export async function activate(context: vscode.ExtensionContext) {
 }
 
 export function deactivate(): Thenable<void> | undefined {
-  if (!client) {
-    return undefined;
-  }
-  return client.stop();
+  return stopServer();
 }
