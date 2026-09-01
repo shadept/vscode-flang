@@ -4,6 +4,13 @@ All notable changes to the FLang VS Code extension will be documented in this fi
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/).
 
+## [0.3.6] - 2026-09-01
+
+### Fixed
+
+- Expressions in a variant construction highlight as expressions: `Some(move v)` no longer renders as one flat type token, so `move`, calls and property access inside a payload keep their own scopes
+- A generic type keeps its closing paren and `[]?` suffix in the type span where a type is expected (`: Slice(u8)`, `as Slice(u8)`, return types), while the same shape in expression position is parsed as a call
+
 ## [0.3.5] - 2026-09-01
 
 ### Added
