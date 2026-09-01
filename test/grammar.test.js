@@ -99,5 +99,23 @@ test('a generic type argument stops at a brace or quote', () => {
   const src = 'let e = Err(CtError { code = "E2118" })\nlet after = 1';
   assert.match(scopesOf(src, 'E2118'), /string\.quoted\.double/);
   assert.match(scopesOf(src, 'let'), /storage\.type/);
-  assert.match(scopesOf('fn f() Result(A, B) {}', 'Result(A, B)'), /entity\.name\.type/);
+  const ret = 'fn f() Result(A, B) {}';
+  assert.match(scopesOf(ret, 'Result'), /entity\.name\.type/);
+  assert.match(scopesOf(ret, 'B'), /entity\.name\.type/);
+});
+
+test('a variant payload is highlighted as an expression', () => {
+  const src = 'return self match {\n    Ok(v) => Some(move v)\n}';
+  assert.match(scopesOf(src, 'move'), /storage\.modifier/);
+  assert.match(scopesOf(src, 'Some'), /entity\.name\.type/);
+});
+
+// The closing paren of a type belongs to the type; the closing paren of a
+// variant construction does not.
+test('a type application spans its parens, a construction does not', () => {
+  const closer = (src) => tokenize(src).filter((t) => t.text.includes(')')).pop();
+  assert.match(closer('let s: Slice(u8) = null').scopes, /entity\.name\.type/);
+  assert.match(closer('fn f() Result(A, B) {}').scopes, /entity\.name\.type/);
+  assert.match(closer('let n = x as Slice(u8)').scopes, /entity\.name\.type/);
+  assert.doesNotMatch(closer('let s = Some(move v)').scopes, /entity\.name\.type/);
 });
