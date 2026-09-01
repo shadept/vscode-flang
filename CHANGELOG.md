@@ -4,6 +4,21 @@ All notable changes to the FLang VS Code extension will be documented in this fi
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/).
 
+## [0.3.5] - 2026-09-01
+
+### Added
+
+- Syntax highlighting for interpolated strings (`$"..."`, `$(cap, &alloc)"..."`, `$sb"..."`): holes highlight as code, `{{`/`}}` as escapes, format specs verbatim
+- Syntax highlighting for the `move` keyword and the `owned` struct-field modifier
+- `npm test` runs TextMate grammar assertions against the real tokenizer
+
+### Fixed
+
+- An interpolation hole containing a quote (a nested string, or a char literal such as `'"'`) no longer ends the string early and paints the rest of the file as string
+- A generic type argument list no longer swallows following string literals, which previously left everything after `Err(CtError { code = "..." })` highlighted as string
+- `\uXXXX` recognized as a string escape
+- `..=`, `<<`, `>>` and `>>>` highlight as single operators instead of being split
+
 ## [0.3.2] - 2026-08-28
 
 ### Changed
