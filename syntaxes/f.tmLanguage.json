@@ -312,7 +312,12 @@
         },
         {
           "name": "storage.type.f",
-          "match": "\\b(fn|struct|enum|type|let|const|test)\\b"
+          "match": "\\b(fn|struct|enum|contract|type|let|const|test)\\b"
+        },
+        {
+          "comment": "`where` is contextual: it opens a bound list only as `where Name :`",
+          "name": "keyword.other.where.f",
+          "match": "\\bwhere\\b(?=\\s+[A-Za-z_][A-Za-z0-9_]*\\s*:)"
         },
         {
           "name": "keyword.operator.cast.f",
@@ -519,9 +524,9 @@
     "types": {
       "patterns": [
         {
-          "comment": "Primitive type with optional &, [], ?: &u8[]?",
+          "comment": "Primitive type with optional &, [], ?: &u8[]?; `copyable` is the built-in contract, lowercase like them",
           "name": "storage.type.primitive.f",
-          "match": "&?(i8|i16|i32|i64|isize|u8|u16|u32|u64|usize|f32|f64|bool|char|void|never)(\\[\\])?\\??"
+          "match": "&?(i8|i16|i32|i64|isize|u8|u16|u32|u64|usize|f32|f64|bool|char|void|never|copyable)(\\[\\])?\\??"
         },
         {
           "comment": "Generic param with optional &, [], ?: &$T[]?",

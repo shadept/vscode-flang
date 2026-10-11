@@ -119,3 +119,17 @@ test('a type application spans its parens, a construction does not', () => {
   assert.match(closer('let n = x as Slice(u8)').scopes, /entity\.name\.type/);
   assert.doesNotMatch(closer('let s = Some(move v)').scopes, /entity\.name\.type/);
 });
+
+test('contract declares a type: keyword, name, requirements', () => {
+  const src = 'pub type Iterator = contract(T) {\n    fn next(self: &Self) T?\n}';
+  assert.match(scopesOf(src, 'contract'), /storage\.type/);
+  assert.match(scopesOf(src, 'Iterator'), /entity\.name\.type/);
+  assert.match(scopesOf(src, 'next'), /entity\.name\.function/);
+});
+
+test('where is a keyword only where it opens a bound list', () => {
+  const src = 'fn f(x: $T) T where T: copyable + Eq {}';
+  assert.match(scopesOf(src, 'where'), /keyword\.other\.where/);
+  assert.match(scopesOf(src, 'copyable'), /storage\.type\.primitive/);
+  assert.doesNotMatch(scopesOf('let where = 1', 'where'), /keyword/);
+});
