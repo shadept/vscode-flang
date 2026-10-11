@@ -4,6 +4,12 @@ All notable changes to the FLang VS Code extension will be documented in this fi
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/).
 
+## [0.3.7] - 2026-10-11
+
+### Added
+
+- Syntax highlighting for contracts (RFC-035): the `contract` keyword in `type Name = contract(T) { ... }` and anonymous bounds, `where` when it opens a bound list (`where T: copyable + Eq`), and `copyable` as a built-in type name
+
 ## [0.3.6] - 2026-09-01
 
 ### Fixed
