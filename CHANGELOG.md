@@ -4,7 +4,7 @@ All notable changes to the FLang VS Code extension will be documented in this fi
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/).
 
-## [Unreleased]
+## [0.3.8] - 2026-10-17
 
 ### Added
 
