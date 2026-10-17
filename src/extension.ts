@@ -34,6 +34,8 @@ let statusBar: vscode.StatusBarItem | undefined;
 let lastStatus: ServerStatus | undefined;
 // Resolved from the binary at launch ("auto" never survives detection).
 let activeFlavor: ResolvedFlavor = "reference";
+// The stdlib the running server was given, reused for test runs.
+let activeStdlib = "";
 
 function updateStatusBar() {
   if (!statusBar) return;
@@ -676,6 +678,7 @@ async function createClient(
   const { command, stdlibPath } = resolveServerPath(context);
   const flavor = await detectFlavor(command);
   activeFlavor = flavor;
+  activeStdlib = stdlibPath;
   updateStatusBar();
   log(`Using server binary: ${command} (${flavor})`);
 
@@ -704,12 +707,65 @@ async function createClient(
     outputChannel,
   };
 
-  return new LanguageClient(
+  const c = new LanguageClient(
     "flangLanguageServer",
     "FLang Language Server",
     serverOptions,
     clientOptions
   );
+  c.registerFeature(runTestFeature);
+  return c;
+}
+
+// ---------------------------------------------------------------------------
+// Test runs - the server's "Run test" code lens names flang.runTest
+// ---------------------------------------------------------------------------
+
+// What the server's lens passes: the project directory, the file relative to
+// it, and the test's label.
+interface TestTarget {
+  dir: string;
+  file: string;
+  name: string;
+}
+
+// Lists flang.runTest under capabilities.experimental.commands, the signal the
+// server needs before it emits lenses that name it.
+const runTestFeature = {
+  fillClientCapabilities(caps: { experimental?: Record<string, unknown> }) {
+    caps.experimental = {
+      ...caps.experimental,
+      commands: { commands: ["flang.runTest"] },
+    };
+  },
+  initialize() {},
+  getState() {
+    return { kind: "static" as const };
+  },
+  clear() {},
+};
+
+// The compiler itself, not the server's temp copy: a test run builds and must
+// resolve paths next to the real binary.
+function compilerCommand(context: vscode.ExtensionContext): string {
+  const cfg = getConfig();
+  return cfg.mode === "auto" ? getCompilerBinaryPath(context) : cfg.serverPath || "flang";
+}
+
+async function runTest(context: vscode.ExtensionContext, t: TestTarget) {
+  const args = ["test", t.file, "--name", t.name];
+  if (activeStdlib) {
+    args.push("-s", activeStdlib);
+  }
+  const task = new vscode.Task(
+    { type: "flang", file: t.file, name: t.name },
+    vscode.TaskScope.Workspace,
+    `test "${t.name}"`,
+    "flang",
+    new vscode.ProcessExecution(compilerCommand(context), args, { cwd: t.dir })
+  );
+  task.presentationOptions = { reveal: vscode.TaskRevealKind.Always, clear: true };
+  await vscode.tasks.executeTask(task);
 }
 
 // ---------------------------------------------------------------------------
@@ -944,12 +1000,18 @@ function registerCommands(context: vscode.ExtensionContext) {
     }
   );
 
+  const runTestCmd = vscode.commands.registerCommand(
+    "flang.runTest",
+    (t: TestTarget) => runTest(context, t)
+  );
+
   context.subscriptions.push(
     restartCmd,
     statusCmd,
     updateCmd,
     versionCmd,
-    addToPathCmd
+    addToPathCmd,
+    runTestCmd
   );
   context.subscriptions.push({ dispose: cleanupTemp });
 

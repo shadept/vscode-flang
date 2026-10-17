@@ -4,6 +4,12 @@ All notable changes to the FLang VS Code extension will be documented in this fi
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/).
 
+## [Unreleased]
+
+### Added
+
+- "Run test" code lens on `test {}` blocks: runs `flang test <file> --name <label>` from the project directory as a task. The extension advertises the `flang.runTest` command through `capabilities.experimental.commands`; the self-hosted server emits the lens only for a client that does
+
 ## [0.3.7] - 2026-10-11
 
 ### Added

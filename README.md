@@ -6,6 +6,7 @@ Syntax highlighting and language server support for [FLang](https://github.com/s
 
 - **Syntax Highlighting** -- full TextMate grammar for all FLang constructs
 - **Language Server** -- hover, go to definition, diagnostics, inlay hints, signature help, and more
+- **Run Test** -- a code lens on every `test {}` block runs it with `flang test` (self-hosted compiler)
 - **Compiler Management** -- automatically downloads, updates, and adds the compiler to your PATH
 
 ## Getting Started

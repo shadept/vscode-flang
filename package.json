@@ -63,6 +63,22 @@
         "title": "FLang: Add Compiler to System PATH"
       }
     ],
+    "taskDefinitions": [
+      {
+        "type": "flang",
+        "required": ["file", "name"],
+        "properties": {
+          "file": {
+            "type": "string",
+            "description": "Test file, relative to the project directory"
+          },
+          "name": {
+            "type": "string",
+            "description": "Test label (substring match)"
+          }
+        }
+      }
+    ],
     "configuration": {
       "title": "FLang",
       "properties": {
