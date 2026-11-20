@@ -1030,6 +1030,16 @@ function registerCommands(context: vscode.ExtensionContext) {
       },
     })
   );
+
+  // The server ignores watcher events; on regaining focus it compares disk
+  // against its last analysis and re-checks what changed meanwhile.
+  context.subscriptions.push(
+    vscode.window.onDidChangeWindowState((state) => {
+      if (state.focused && client?.isRunning()) {
+        client.sendNotification("flang/catchUp");
+      }
+    })
+  );
 }
 
 export function deactivate(): Thenable<void> | undefined {
