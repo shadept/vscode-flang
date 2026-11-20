@@ -4,6 +4,12 @@ All notable changes to the FLang VS Code extension will be documented in this fi
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/).
 
+## [0.3.9] - 2026-11-20
+
+### Added
+
+- Sends `flang/catchUp` when the window regains focus, so the server re-checks files changed on disk meanwhile
+
 ## [0.3.8] - 2026-10-17
 
 ### Added
